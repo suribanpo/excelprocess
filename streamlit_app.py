@@ -217,7 +217,6 @@ with st.expander("1단계: 엑셀 파일 업로드 및 통합", expanded=True):
                     st.dataframe(df.head(5))
 
         st.download_button(
-            type='primary', 
             label="1단계 결과 다운로드: 여러 통합문서를 하나의 통합문서로",
             data=st.session_state.step1_data,
             file_name="특기사항_모든파일_통합문서.xlsx",
@@ -238,7 +237,6 @@ with st.expander("2단계: 데이터 처리 및 변환", expanded=True):
         output_step2.seek(0)
         st.success("🎉 2단계 처리 완료! 모든 데이터를 하나의 시트로 통합하였습니다.")
         st.download_button(
-            type='primary', 
             label="2단계 결과 다운로드: 모든 데이터를 하나의 시트로",
             data=output_step2,
             file_name="특기사항_하나의시트.xlsx",
@@ -259,7 +257,6 @@ with st.expander("3단계: 학생별 데이터 모아보기 생성", expanded=Tr
                 df.to_excel(writer, index=False, sheet_name="특기사항")
             output_step3.seek(0)
             st.download_button(
-                type='primary',
                 label=f"3단계 결과 다운로드: {section_name} 학생별 합본",
                 data=output_step3,
                 file_name=f"{section_name}_특기사항_학생별모음.xlsx",
@@ -275,7 +272,6 @@ with st.expander("4단계: 엑셀 수식 및 열 설정 추가", expanded=True):
             st.dataframe(preview_data.head(10))
             temp_output.seek(0)
             st.download_button(
-                type='primary',
                 label=f"4단계 결과 다운로드: {section_name} 모든 특기사항 합친 데이터 및 바이트 추가한 최종본",
                 data=temp_output,
                 file_name=f"{section_name}_특기사항_합본_바이트추가.xlsx",
