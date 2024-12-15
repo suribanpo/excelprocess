@@ -68,7 +68,7 @@ def process_step2_data(step1_data):
 
             max_length_col = df.apply(lambda col: col.astype(str).str.len().max(), axis=0).idxmax()
             df.columns = df.columns.str.replace(max_length_col, '기재내용', regex=False)
-
+            
             if '학년' in df.columns:
                 df['학년'] = df['학년'].astype(str).str.extract('(\d+)').astype(int)
                 df['반'] = df['반'].astype(str).str.extract('(\d+)').astype(int)
@@ -164,21 +164,28 @@ def add_excel_formulas(section_name, df):
 #####################
 
 st.title("📑 엑셀 데이터 처리 앱")
-st.info("""
-학년, 반, 학번, 학생 이름 등이 포함된 여러 엑셀 파일을 하나로 통합하고 데이터를 학생별로 정렬하는 앱입니다.
 
-**주요 기능**  
-1️⃣ 엑셀 파일 업로드 및 통합    
-2️⃣ 데이터 처리 및 변환  
-3️⃣ 피벗 테이블 생성  
-4️⃣ 엑셀 수식 추가 및 반별 시트 생성
+st.markdown("""
+<div style="font-size: 14px; background-color: #f0f2f6; padding: 10px; border-radius: 5px;">
+<b>📊 엑셀 데이터 처리 앱</b><br>
+학번이나 학년/반/번호/이름이 포함된 학생 데이터를 통합, 정렬, 학생별 모아보기 등의 기능을 제공하는 앱입니다.
+<br><br>
+<b>🔑 주요 기능</b><br>
+1️⃣ 파일 업로드 및 통합<br>
+2️⃣ 데이터 처리 및 변환<br>
+3️⃣ 피벗 테이블 생성<br>
+4️⃣ 수식 추가 및 반별 시트 생성<br><br>
+<b>📂 파일명 규칙</b><br>
+- "영역명_세부파일명.xlsx" 형식 필수<br>
+- 동일 영역명 파일끼리 업로드<br><br>
+<b>🔒 보안 안내</b><br>
+- 업로드된 데이터는 로컬 세션 내에서만 처리되며, 외부 서버로 전송되지 않습니다.<br>
+- 즉, 데이터는 사용자가 세션을 종료하면 즉시 삭제됩니다.<br><br>
+<b>🔍 각 단계에서 미리보기 제공 및 다운로드 가능</b><br>
+👤 creator : Subhin Hwang, 💻 language : python</div>
+""", unsafe_allow_html=True)
 
-**파일명 규칙**  
-"영역명_세부파일명.xlsx" 형태로 파일명 지정해주세요.(예: "자율활동_000행사 특기사항.xlsx")
-동일한 영역명의 파일만 한 번에 업로드해주세요.(자율은 자율끼리, 진로는 진로끼리)
 
-각 단계에서는 미리보기를 통해 결과를 확인하고, 처리된 데이터를 다운로드할 수 있습니다.
-""")
 
 if 'step1_data' not in st.session_state:
     st.session_state.step1_data = None  
@@ -191,25 +198,27 @@ if 'step4_data' not in st.session_state:
 
 # 1단계: 파일 업로드 및 통합
 with st.expander("1단계: 엑셀 파일 업로드 및 통합", expanded=True):
-    uploaded_files = st.file_uploader("📤 엑셀 파일을 업로드하세요", type=["xls", "xlsx"], accept_multiple_files=True)
+    st.write("### 📤 엑셀 파일을 업로드하기")
+    uploaded_files = st.file_uploader("엑셀파일을 업로드해주세요. ", type=["xls", "xlsx"], accept_multiple_files=True)
     if uploaded_files:
         output, processed_files_data = process_uploaded_files(uploaded_files)
         st.session_state.step1_data = output
-        st.success("🎉 1단계 처리 완료! '이름'으로 통일하고 통합 문서를 생성했습니다.")
+        st.success("🎉 1단계 처리 완료! '성명'을 '이름'으로 통일하고 통합 문서를 생성했습니다.")
 
         # 업로드한 모든 파일을 tabs로 보기
         tab_names = [f"파일: {name}" for name in processed_files_data.keys()]
         tabs = st.tabs(tab_names)
         for i, (file_name, sheet_dfs) in enumerate(processed_files_data.items()):
             with tabs[i]:
-                st.write(f"**{file_name} 처리 결과**")
+                # st.write(f"**{file_name} 처리 결과**")
                 for sheet_name, df in sheet_dfs:
-                    st.write(f"**시트명**: {sheet_name}")
-                    st.dataframe(df.head(10))
+                    n, m = df.shape
+                    st.info(f"파일명 : {file_name}\n\n시트명: {sheet_name}, **{n}명의 학생 데이터가** 포함되어 있습니다. ")
+                    st.dataframe(df.head(5))
 
         st.download_button(
             type='primary', 
-            label="1단계 결과 다운로드: 통합 문서",
+            label="1단계 결과 다운로드: 여러 통합문서를 하나의 통합문서로",
             data=st.session_state.step1_data,
             file_name="특기사항_모든파일_통합문서.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -218,6 +227,7 @@ with st.expander("1단계: 엑셀 파일 업로드 및 통합", expanded=True):
 # 2단계: 데이터 처리 및 변환
 with st.expander("2단계: 데이터 처리 및 변환", expanded=True):
     if st.session_state.step1_data:
+        st.write("### ⌨️ 하나의 시트로 모든 데이터 모으기")
         final_df = process_step2_data(st.session_state.step1_data)
         st.session_state.step2_data = final_df
         st.write("📋 2단계 처리 결과 (미리보기)")
@@ -229,21 +239,20 @@ with st.expander("2단계: 데이터 처리 및 변환", expanded=True):
         st.success("🎉 2단계 처리 완료! 모든 데이터를 하나의 시트로 통합하였습니다.")
         st.download_button(
             type='primary', 
-            label="2단계 결과 다운로드",
+            label="2단계 결과 다운로드: 모든 데이터를 하나의 시트로",
             data=output_step2,
             file_name="특기사항_하나의시트.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
 # 3단계: 피벗 테이블 생성
-with st.expander("3단계: 피벗 테이블 생성", expanded=True):
+with st.expander("3단계: 학생별 데이터 모아보기 생성", expanded=True):
     if st.session_state.step2_data is not None:
-        st.write("### 🗂️ 영역별 피벗 테이블 생성")
+        st.write("### 🗂️ 학생별 데이터 모아보기 생성")
         section_df_list = create_pivot_tables(st.session_state.step2_data)
         st.session_state.step3_data = section_df_list
 
         for section_name, df in section_df_list:
-            st.write(f"#### 📋 피벗 테이블 미리보기: **{section_name}**")
             st.dataframe(df.head(10))
             output_step3 = BytesIO()
             with pd.ExcelWriter(output_step3, engine="xlsxwriter") as writer:
@@ -251,7 +260,7 @@ with st.expander("3단계: 피벗 테이블 생성", expanded=True):
             output_step3.seek(0)
             st.download_button(
                 type='primary',
-                label=f"3단계 결과 다운로드: {section_name}",
+                label=f"3단계 결과 다운로드: {section_name} 학생별 합본",
                 data=output_step3,
                 file_name=f"{section_name}_특기사항_학생별모음.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -263,12 +272,11 @@ with st.expander("4단계: 엑셀 수식 및 열 설정 추가", expanded=True):
         st.write("### ✏️ 특기사항 합본 및 바이트 계산 수식 추가")
         for section_name, df in st.session_state.step3_data:
             temp_output, preview_data = add_excel_formulas(section_name, df)
-            st.write(f"#### 📝 4단계 결과 미리보기: **{section_name}**")
             st.dataframe(preview_data.head(10))
             temp_output.seek(0)
             st.download_button(
                 type='primary',
-                label=f"4단계 결과 다운로드: {section_name}",
+                label=f"4단계 결과 다운로드: {section_name} 모든 특기사항 합친 데이터 및 바이트 추가한 최종본",
                 data=temp_output,
                 file_name=f"{section_name}_특기사항_합본_바이트추가.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -277,9 +285,12 @@ with st.expander("4단계: 엑셀 수식 및 열 설정 추가", expanded=True):
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; margin-top: 20px;">
-    <p style="font-size: 14px; color: gray;">© 2024 <strong>Excel Process</strong></p>
+    <p style="font-size: 14px; color: gray;">© 2024 <strong>Excel Process</strong> made by <strong>Subhin Hwang</strong></p>
     <p style="font-size: 12px; color: gray;">
         Designed with ❤️ to simplify Excel workflows.
+    </p>
+    <p style="font-size: 14px; color: gray;">
+        📧 Contact: <a href="mailto:sbhath17@gmail.com">sbhath17@gmail.com</a>
     </p>
 </div>
 """, unsafe_allow_html=True)
