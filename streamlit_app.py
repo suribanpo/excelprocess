@@ -196,6 +196,24 @@ if 'step3_data' not in st.session_state:
 if 'step4_data' not in st.session_state:
     st.session_state.step4_data = []  
 
+
+# 학생 명렬표 업로드 기능 추가 (1단계 전에)
+st.write(" ")
+st.write("##### 📤 [선택]전체 학생 명렬표 업로드")
+
+roster_file = st.file_uploader("학생 명렬표를 업로드하세요. 명렬표를 업로드하면 최종 파일에 특기사항이 없는 학생들(모든 행사에 참여하지 않은 학생)도 포함되어 파일이 생성됩니다. ", type=["xls", "xlsx"], key="roster")
+if roster_file is not None:
+    roster_df = pd.read_excel(roster_file)
+    # 필요하다면 roster_df 처리 (학년, 반, 번호 추출 등)
+    if '학번' in roster_df.columns:
+        roster_df['학년'] = roster_df['학번'].astype(str).str[0].astype(int)
+        roster_df['반'] = roster_df['학번'].astype(str).str[1:3].astype(int)
+        roster_df['번호'] = roster_df['학번'].astype(str).str[3:].astype(int)
+    roster_df['이름'] = roster_df['이름'].apply(normalize_text)
+else:
+    roster_df = None
+
+
 # 1단계: 파일 업로드 및 통합
 with st.expander("1단계: 엑셀 파일 업로드 및 통합", expanded=True):
     st.write("### 📤 엑셀 파일을 업로드하기")
@@ -262,9 +280,31 @@ with st.expander("3단계: 학생별 데이터 모아보기 생성", expanded=Tr
                 file_name=f"{section_name}_특기사항_학생별모음.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+    # 3단계 끝부분 수정: 3단계 결과에 학생명렬표 기반 누락 학생 추가 후 정렬
+    if roster_df is not None and st.session_state.step3_data:
+        updated_section_df_list = []
+        for section_name, df in st.session_state.step3_data:
+            df = pd.merge(roster_df[['학년','반','번호','이름']], df, on=['학년','반','번호','이름'], how='left')
+            df = df.sort_values(['학년','반','번호'])
+            updated_section_df_list.append((section_name, df))
+        st.session_state.step3_data = updated_section_df_list
+
 
 # 4단계: 엑셀 수식 및 열 설정 추가
 with st.expander("4단계: 엑셀 수식 및 열 설정 추가", expanded=True):
+    # 4단계 시작부분 수정: 4단계에서도 학생명렬표와 비교하여 누락 학생 추가 후 정렬
+    if roster_df is not None and st.session_state.step3_data:
+        updated_section_df_list = []
+        for section_name, df in st.session_state.step3_data:
+            df = pd.merge(roster_df[['학년','반','번호','이름']], df, on=['학년','반','번호','이름'], how='left')
+            df = df.sort_values(['학년','반','번호'])
+            # df를 정리한 후 수식 추가 함수에 전달
+            temp_output, preview_data = add_excel_formulas(section_name, df)
+            updated_section_df_list.append((section_name, preview_data))
+        # 4단계에서는 preview_data는 미리보기용이므로 실제 데이터 정리는 위 merge/정렬 단계에서 이미 완료됨
+        # 여기서는 st.session_state.step4_data 등에 할당할 필요가 있다면 추가
+        st.session_state.step4_data = updated_section_df_list
+
     if st.session_state.step3_data:
         st.write("### ✏️ 특기사항 합본 및 바이트 계산 수식 추가")
         for section_name, df in st.session_state.step3_data:
