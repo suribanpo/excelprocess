@@ -28,13 +28,14 @@ def extract_fields(sheet_name):
     else:
         return parts[0], ""
 
-# 1단계 파일 처리 수정
+# 1단계 파일 처리 수정 부분
 def process_uploaded_files(uploaded_files):
     processed_files_data = {}
     output = BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
         for uploaded_file in uploaded_files:
             file_name = uploaded_file.name
+            # 파일명에서 영역명_세부영역명 추출
             base_sheet_name = '_'.join(file_name.split('_')[:2])
             excel_file = pd.ExcelFile(uploaded_file)
             sheet_dfs = []
@@ -48,10 +49,13 @@ def process_uploaded_files(uploaded_files):
                 if '학년' in df.columns:
                     df['학년'] = df['학년'].astype(str).str.extract('(\d+)').astype(int)
 
+                # 모든 시트에 동일한 영역명_세부영역명 부여
+                df['영역'] = base_sheet_name
+
                 if len(excel_file.sheet_names) == 1:
                     new_sheet_name = base_sheet_name[:31]
                 else:
-                    new_sheet_name = f"{base_sheet_name}_{sheet_name}"
+                    new_sheet_name = f"{base_sheet_name}_{sheet_name}"[:31]
 
                 df.to_excel(writer, sheet_name=new_sheet_name, index=False)
                 sheet_dfs.append((new_sheet_name, df))
@@ -59,19 +63,22 @@ def process_uploaded_files(uploaded_files):
     output.seek(0)
     return output, processed_files_data
 
+
+# 2단계 데이터 처리 수정 부분 (영역 추출 시 sheet_name 대신 1단계에서 이미 넣어준 '영역' 컬럼 사용)
 def process_step2_data(step1_data):
     with pd.ExcelFile(step1_data) as excel_file:
         all_data = []
         for sheet_name in excel_file.sheet_names:
-            normalized_sheet_name = unicodedata.normalize('NFC', sheet_name)
             df = excel_file.parse(sheet_name=sheet_name)
 
             max_length_col = df.apply(lambda col: col.astype(str).str.len().max(), axis=0).idxmax()
             df.columns = df.columns.str.replace(max_length_col, '기재내용', regex=False)
-            
+
             if '학년' in df.columns:
                 df['학년'] = df['학년'].astype(str).str.extract('(\d+)').astype(int)
                 df['반'] = df['반'].astype(str).str.extract('(\d+)').astype(int)
+                st.write(sheet_name)
+                st.write(df.head())
                 df['번호'] = df['번호'].astype(str).str.extract('(\d+)').astype(int)
 
             if '학번' in df.columns:
@@ -80,7 +87,7 @@ def process_step2_data(step1_data):
                 df['번호'] = df['학번'].astype(str).str[3:].astype(int)
                 st.warning(f"⚠️ [{sheet_name}] 파일의 '학번'이 학년, 반, 번호로 분리되었습니다.")
 
-            df['영역'] = normalized_sheet_name
+
             df = df[['학년', '반', '번호', '이름', '영역', '기재내용']]
             df['기재내용'] = df['기재내용'].apply(lambda x: x[:x.rfind('.')+1] + ' ' if isinstance(x, str) and '.' in x else x)
             all_data.append(df)
@@ -90,7 +97,7 @@ def process_step2_data(step1_data):
         for col in ['이름', '기재내용', '영역']:
             final_df[col] = final_df[col].apply(normalize_text)
 
-        # 영역명, 세부영역명 추출 (이제 "영역명_세부파일명" 형식)
+        # 영역명, 세부영역명 추출 (이제 "영역명_세부파일명"은 1단계에서 영역 컬럼에 동일하게 할당됨)
         final_df[['영역명', '세부영역명']] = final_df['영역'].apply(lambda x: pd.Series(extract_fields(x)))
         for col in ['영역명', '세부영역명']:
             final_df[col] = final_df[col].apply(normalize_text)
@@ -102,10 +109,18 @@ def create_pivot_tables(final_df):
     section_df_list = []
     for section_name in final_df['영역명'].unique():
         section_df = final_df[final_df['영역명'] == section_name]
+
+        # 중복 데이터 해결: 중복된 '학년', '반', '번호', '이름', '세부영역명'에 대해 기재내용을 병합
+        section_df = section_df.groupby(['학년', '반', '번호', '이름', '세부영역명'], as_index=False).agg({
+            '기재내용': lambda x: ' | '.join(x.dropna().astype(str))
+        })
+
+        # 피벗 테이블 생성
         section_df_pivot = section_df.pivot(index=['학년', '반', '번호', '이름'], columns='세부영역명', values='기재내용')
-        section_df_pivot.reset_index(inplace=True)
+        section_df_pivot.reset_index(inplace=True)  # 인덱스 초기화
         section_df_list.append((section_name, section_df_pivot))
     return section_df_list
+
 
 def add_excel_formulas(section_name, df):
     output_step4 = BytesIO()
@@ -201,15 +216,23 @@ if 'step4_data' not in st.session_state:
 st.write(" ")
 st.write("##### 📤 [선택]전체 학생 명렬표 업로드")
 
-roster_file = st.file_uploader("학생 명렬표를 업로드하세요. 명렬표를 업로드하면 최종 파일에 특기사항이 없는 학생들(모든 행사에 참여하지 않은 학생)도 포함되어 파일이 생성됩니다. ", type=["xls", "xlsx"], key="roster")
+roster_file = st.file_uploader(
+    "학생 명렬표를 업로드하세요. 명렬표를 업로드하면 최종 파일에 특기사항이 없는 학생들(모든 행사에 참여하지 않은 학생)도 포함되어 파일이 생성됩니다. ",
+    type=["xls", "xlsx"], key="roster"
+)
 if roster_file is not None:
     roster_df = pd.read_excel(roster_file)
+    # '성명' 컬럼이 있으면 '이름'으로 변경
+    if '성명' in roster_df.columns:
+        roster_df.rename(columns={'성명': '이름'}, inplace=True)
     # 필요하다면 roster_df 처리 (학년, 반, 번호 추출 등)
     if '학번' in roster_df.columns:
         roster_df['학년'] = roster_df['학번'].astype(str).str[0].astype(int)
         roster_df['반'] = roster_df['학번'].astype(str).str[1:3].astype(int)
         roster_df['번호'] = roster_df['학번'].astype(str).str[3:].astype(int)
-    roster_df['이름'] = roster_df['이름'].apply(normalize_text)
+    # 이름 정규화
+    if '이름' in roster_df.columns:
+        roster_df['이름'] = roster_df['이름'].apply(normalize_text)
 else:
     roster_df = None
 
@@ -305,18 +328,28 @@ with st.expander("4단계: 엑셀 수식 및 열 설정 추가", expanded=True):
         # 여기서는 st.session_state.step4_data 등에 할당할 필요가 있다면 추가
         st.session_state.step4_data = updated_section_df_list
 
-    if st.session_state.step3_data:
-        st.write("### ✏️ 특기사항 합본 및 바이트 계산 수식 추가")
-        for section_name, df in st.session_state.step3_data:
-            temp_output, preview_data = add_excel_formulas(section_name, df)
-            st.dataframe(preview_data.head(10))
-            temp_output.seek(0)
-            st.download_button(
-                label=f"4단계 결과 다운로드: {section_name} 모든 특기사항 합친 데이터 및 바이트 추가한 최종본",
-                data=temp_output,
-                file_name=f"{section_name}_특기사항_합본_바이트추가.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+        import datetime
+        import pytz
+
+        # 한국 시간대로 현재 날짜와 시간 포맷팅
+        kst = pytz.timezone('Asia/Seoul')
+        current_datetime_kst = datetime.datetime.now(kst).strftime("%Y%m%d_%H%M")
+
+        if st.session_state.step3_data:
+            st.write("### ✏️ 특기사항 합본 및 바이트 계산 수식 추가")
+            # 업로드 파일 개수 추출 (1단계 처리 시 저장한 processed_files_data 사용 가정)
+            combined_files_count = len(processed_files_data) if 'processed_files_data' in locals() else 0
+
+            for section_name, df in st.session_state.step3_data:
+                temp_output, preview_data = add_excel_formulas(section_name, df)
+                st.dataframe(preview_data.head(10))
+                temp_output.seek(0)
+                st.download_button(
+                    label=f"4단계 결과 다운로드: {section_name} 모든 특기사항 합친 데이터 및 바이트 추가한 최종본",
+                    data=temp_output,
+                    file_name=f"{section_name}_특기사항_{combined_files_count}개_합본_바이트추가_{current_datetime_kst}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
 st.markdown("---")
 st.markdown("""
