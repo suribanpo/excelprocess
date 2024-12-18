@@ -178,8 +178,13 @@ def add_excel_formulas(section_name, df):
                         f'=LENB({get_column_letter(combine_col_index)}{idx})*2-LEN({get_column_letter(combine_col_index)}{idx})'
                     )
 
+                if section_name == "자율활동":
+                    ws[f"{get_column_letter(additional_col)}1"] = "비고(학급임원파일과 학급활동 등은 수기로 추가해주세요. 마지막 온점 뒤 띄어쓰기 필수!)"
+                elif section_name == "진로활동":
+                    ws[f"{get_column_letter(additional_col)}1"] = "비고(수기로 추가할 내용을 작성해주세요. 마지막 온점 뒤 띄어쓰기 필수!)"
+
                 # 열 이름 설정
-                ws[f"{get_column_letter(additional_col)}1"] = "비고(학급임원파일과 학급활동 등은 수기로 추가해주세요. 마지막 온점 뒤 띄어쓰기 필수!)"
+                # ws[f"{get_column_letter(additional_col)}1"] = "비고(학급임원파일과 학급활동 등은 수기로 추가해주세요. 마지막 온점 뒤 띄어쓰기 필수!)"
                 ws[f"{get_column_letter(combine_col_index)}1"] = "특기사항 합본"
                 ws[f"{get_column_letter(byte_col_index)}1"] = "바이트 계산"
 
@@ -286,7 +291,7 @@ def add_excel_formulas(section_name, df):
 st.title("📑 엑셀 데이터 처리 앱")
 
 # 안내 메시지
-st.info("🔑 엑셀 데이터 처리 핵심 기능\n\n1️⃣ 파일 업로드 및 통합\t2️⃣ 데이터 처리 및 변환\t3️⃣ 피벗 테이블 생성\t4️⃣ 수식 추가 및 반별 시트 생성")
+st.info("🔑 업로드하는 통합문서에는 시트가 하나만 있어야합니다. 통합문서를 시트별로 나눠서 처리하는 기능은 아직 준비중이에요!\n\n1️⃣ 파일 업로드 및 통합\t2️⃣ 데이터 처리 및 변환\t3️⃣ 피벗 테이블 생성\t4️⃣ 수식 추가 및 반별 시트 생성")
 
 with st.expander("📋 앱 사용 설명서 - 클릭해서 펼치기", expanded=False):
     st.markdown("""
