@@ -167,13 +167,19 @@ def add_excel_formulas(section_name, df):
                 byte_col_index = combine_col_index + 1
 
                 # 특기사항 합본 및 바이트 계산 수식 추가
-                for idx in range(2, len(df) + 2):
+                # '이름' 열에서 마지막 유효 행 찾기
+                name_col_letter = get_column_letter(group_df.columns.get_loc("이름") + 1)  # '이름' 열의 열 문자
+                last_name_row = max(
+                    row.row for row in ws[name_col_letter] if row.value  # '이름' 열의 유효 값이 있는 행을 찾음
+                )
+
+                # 특기사항 합본 및 바이트 계산 수식 추가 (마지막 유효 행까지만 적용)
+                for idx in range(2, last_name_row + 1):  # 범위를 '이름' 열의 마지막 유효 행으로 제한
                     concat_formula = "=" + "CONCATENATE(" + ",".join(
                         [f"{get_column_letter(start_col + num_cols)}{idx}"] +  # 마지막 열 먼저 추가
                         [f"{get_column_letter(col)}{idx}" for col in range(start_col, start_col + num_cols)]  # 나머지 열 추가
                     ) + ")"
                     ws[f"{get_column_letter(combine_col_index)}{idx}"] = concat_formula
-                for idx in range(2, ws.max_row + 1):
                     ws[f"{get_column_letter(byte_col_index)}{idx}"] = (
                         f'=LENB({get_column_letter(combine_col_index)}{idx})*2-LEN({get_column_letter(combine_col_index)}{idx})'
                     )
@@ -349,6 +355,10 @@ if roster_file is not None:
 
         # 학번이 있는 경우 학년, 반, 번호로 분리
         if '학번' in roster_df.columns:
+            st.write("yes")
+            if '학년' in roster_df.columns:
+
+                roster_df = roster_df.drop(columns=['학년'])
             roster_df['학년'] = roster_df['학번'].astype(str).str[0].astype(int)
             roster_df['반'] = roster_df['학번'].astype(str).str[1:3].astype(int)
             roster_df['번호'] = roster_df['학번'].astype(str).str[3:].astype(int)
