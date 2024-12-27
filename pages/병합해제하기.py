@@ -107,13 +107,13 @@ if uploaded_file:
                 # 시트별 다운로드 버튼
                 sheet_output = BytesIO()
                 with pd.ExcelWriter(sheet_output, engine='openpyxl') as writer:
-                    df.to_excel(writer, index=False, sheet_name=sheet_name, header=True)
+                    df.to_excel(writer, index=False, sheet_name=sheet_name, header=False)
                 sheet_output.seek(0)
 
                 st.download_button(
                     label=f"💾 {sheet_name} 다운로드",
                     data=sheet_output,
-                    file_name=f"{sheet_name}_processed.xlsx",
+                    file_name=f"{sheet_name}_병합해제.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
 else:
